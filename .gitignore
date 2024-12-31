@@ -13,7 +13,9 @@ demo/
 venv/
 .cache/
 temp/
+certs/
 
 # Python
 __pycache__/
 *.pyc
+*.pem

@@ -38,12 +38,14 @@ COPY templates templates/
 # Set up directories and SSL cert in one layer
 RUN mkdir -p voices && \
     openssl req -x509 -newkey rsa:4096 -nodes \
-       -keyout /app/key.pem -out /app/cert.pem -days 365 \
-       -subj '/CN=localhost'
+        -keyout /app/key.pem -out /app/cert.pem -days 365 \
+        -subj '/CN=localhost'
 
 # Create non-root user and set permissions
 RUN useradd -m -u 1000 tts && \
-    chown -R tts:tts /app
+    chown -R tts:tts /app && \
+    chmod 600 key.pem && \
+    chmod 644 cert.pem
 
 USER tts
 

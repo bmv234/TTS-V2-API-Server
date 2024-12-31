@@ -385,4 +385,12 @@ async def create_speech(request: AudioSpeechRequest):
         raise HTTPException(status_code=500, detail=f"Speech generation failed: {str(e)}")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    config = uvicorn.Config(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        ssl_keyfile="key.pem",
+        ssl_certfile="cert.pem"
+    )
+    server = uvicorn.Server(config)
+    server.run()
