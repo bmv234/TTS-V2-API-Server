@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kokoro TTS</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --container-bg: #2d2d2d;
+            --text-color: #e0e0e0;
+            --border-color: #404040;
+            --input-bg: #3d3d3d;
+            --button-bg: #007bff;
+            --button-hover: #0056b3;
+            --code-bg: #000000;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        .container {
+            background-color: var(--container-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+        h1 {
+            color: var(--text-color);
+            text-align: center;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-color);
+        }
+        textarea, select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+        button {
+            background-color: var(--button-bg);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: var(--button-hover);
+        }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: var(--input-bg);
+            border-radius: 4px;
+        }
+        #loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+            color: var(--text-color);
+        }
+        .error {
+            color: #ff4444;
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ff4444;
+            border-radius: 4px;
+            display: none;
+        }
+        .playback-controls {
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: var(--input-bg);
+            border-radius: 4px;
+        }
+        .playback-controls label {
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .playback-controls input[type="range"] {
+            width: 200px;
+            vertical-align: middle;
+            background-color: var(--container-bg);
+        }
+        #speedValue {
+            display: inline-block;
+            min-width: 40px;
+            text-align: right;
+            margin-left: 10px;
+            color: var(--text-color);
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            height: 8px;
+            background: var(--container-bg);
+            border-radius: 4px;
+            background-image: linear-gradient(var(--button-bg), var(--button-bg));
+            background-repeat: no-repeat;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: var(--button-bg);
+            cursor: pointer;
+            box-shadow: 0 0 2px 0 #555;
+            transition: background .3s ease-in-out;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: var(--button-hover);
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            -webkit-appearance: none;
+            box-shadow: none;
+            border: none;
+            background: transparent;
+        }
+        .api-example {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: var(--code-bg);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+        .api-example pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #00ff00;
+        }
+        .api-example h3 {
+            color: var(--text-color);
+            margin-top: 0;
+        }
+        .copy-button {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 5px 10px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+        .copy-button:hover {
+            background-color: var(--container-bg);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TTS API Server</h1>
+        
+        <div class="section">
+            <label for="text">Enter Text:</label>
+            <textarea id="text" rows="6" placeholder="Enter the text you want to convert to speech" oninput="updateApiExample()"></textarea>
+            
+            <label for="voice">Select Voice:</label>
+            <select id="voice" onchange="updateApiExample()">
+                <option value="">Default Voice</option>
+                {% for voice in voices %}
+                <option value="{{ voice.id }}">{{ voice.id }} ({{ voice.metadata.gender }})</option>
+                {% endfor %}
+            </select>
+            
+            <button onclick="generateSpeech()">Generate Speech</button>
+        </div>
+
+        <div id="loading">
+            Generating speech... Please wait...
+        </div>
+
+        <div id="error" class="error"></div>
+
+        <div id="result" class="result" style="display: none;">
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <audio id="audio" controls style="flex-grow: 1;">
+                        Your browser does not support the audio element.
+                    </audio>
+                    <div class="playback-controls" style="display: flex; align-items: center; gap: 10px; white-space: nowrap;">
+                        <label for="playbackSpeed">Speed:</label>
+                        <input type="range" id="playbackSpeed" min="0.5" max="2" step="0.1" value="1" style="width: 100px;">
+                        <span id="speedValue">1.0x</span>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                    <button onclick="downloadAudio()" style="background-color: var(--button-bg); padding: 8px 16px;">
+                        <span style="margin-right: 8px;">⬇️</span>Download Audio
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-example">
+            <h3>API Example</h3>
+            <pre id="apiExample">// Select a voice and enter text to see the API example</pre>
+            <button class="copy-button" onclick="copyApiExample()">Copy to Clipboard</button>
+        </div>
+    </div>
+
+    <script>
+        function updateApiExample() {
+            const text = document.getElementById('text').value;
+            const voice = document.getElementById('voice').value;
+            let example = '';
+
+            example = `# Python example using requests library
+                
+import requests
+
+# Standard API
+url = "http://localhost:8000/tts"
+params = {
+    "text": "${text || 'Hello, how are you?'}"${voice ? `,
+    "voice": "${voice}"` : ''}
+}
+
+response = requests.post(url, params=params)
+with open("output.wav", "wb") as f:
+    f.write(response.content)
+
+# OpenAI-Compatible API
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="not-needed"
+)
+
+response = client.audio.speech.create(
+    model="tts-1",
+    voice="${voice || 'alloy'}",
+    input="${text || 'Hello, how are you?'}"
+)
+
+response.stream_to_file("output.wav")
+
+# cURL example
+curl -X POST "http://localhost:8000/tts?text=${text || 'Hello, how are you?'}${voice ? `&voice=${voice}` : ''}" \\
+    --output output.wav`;
+            document.getElementById('apiExample').textContent = example;
+        }
+
+        async function generateSpeech() {
+            const text = document.getElementById('text').value;
+            const voice = document.getElementById('voice').value;
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const error = document.getElementById('error');
+            const audio = document.getElementById('audio');
+
+            if (!text) {
+                showError('Please enter some text');
+                return;
+            }
+
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            error.style.display = 'none';
+
+            try {
+                const params = new URLSearchParams({
+                    text: text,
+                });
+                if (voice) {
+                    params.append('voice', voice);
+                }
+
+                const response = await fetch('/tts?' + params.toString(), {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to generate speech');
+                }
+
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                audio.src = url;
+                result.style.display = 'block';
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function showError(message) {
+            const error = document.getElementById('error');
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+
+        // Playback speed control
+        document.getElementById('playbackSpeed').addEventListener('input', function(e) {
+            const speed = parseFloat(e.target.value);
+            const audio = document.getElementById('audio');
+            const speedValue = document.getElementById('speedValue');
+            
+            audio.playbackRate = speed;
+            speedValue.textContent = speed.toFixed(1) + 'x';
+            
+            // Update the background size of the range input for the fill effect
+            const min = e.target.min;
+            const max = e.target.max;
+            const val = e.target.value;
+            const percentage = (val - min) * 100 / (max - min);
+            e.target.style.backgroundSize = percentage + '% 100%';
+        });
+
+        // Initialize the range input background size
+        window.addEventListener('load', function() {
+            const rangeInput = document.getElementById('playbackSpeed');
+            const val = (rangeInput.value - rangeInput.min) * 100 / (rangeInput.max - rangeInput.min);
+            rangeInput.style.backgroundSize = val + '% 100%';
+        });
+
+        // Reset playback speed when loading new audio
+        function resetPlaybackSpeed() {
+            const speedSlider = document.getElementById('playbackSpeed');
+            const speedValue = document.getElementById('speedValue');
+            const audio = document.getElementById('audio');
+            
+            speedSlider.value = 1;
+            audio.playbackRate = 1;
+            speedValue.textContent = '1.0x';
+            speedSlider.style.backgroundSize = '33% 100%';  // (1 - 0.5) * 100 / (2 - 0.5) ≈ 33%
+        }
+
+        // Update generateSpeech to reset playback speed
+        const originalGenerateSpeech = generateSpeech;
+        generateSpeech = async function() {
+            await originalGenerateSpeech();
+            resetPlaybackSpeed();
+        };
+
+        function copyApiExample() {
+            const example = document.getElementById('apiExample').textContent;
+            navigator.clipboard.writeText(example).then(() => {
+                const copyButton = document.querySelector('.copy-button');
+                const originalText = copyButton.textContent;
+                copyButton.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyButton.textContent = originalText;
+                }, 2000);
+            });
+        }
+
+        // Download audio function
+        function downloadAudio() {
+            const audio = document.getElementById('audio');
+            if (!audio.src) {
+                showError('No audio available to download');
+                return;
+            }
+        
+            // Create a temporary anchor element
+            const a = document.createElement('a');
+            a.href = audio.src;
+            
+            // Set filename with timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            a.download = `speech_${timestamp}.wav`;
+            
+            // Trigger download
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // Initialize API example
+        updateApiExample();
+    </script>
+</body>
+</html>

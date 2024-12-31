@@ -1,0 +1,19 @@
+# Downloaded model files
+models.py
+kokoro.py
+istftnet.py
+plbert.py
+config.json
+kokoro-v0_19.pth
+
+# Downloaded voice files
+voices/
+fp16/
+demo/
+venv/
+.cache/
+temp/
+
+# Python
+__pycache__/
+*.pyc

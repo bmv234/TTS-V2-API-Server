@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  tts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kokoro-tts:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount model files so they persist between container restarts
+      - ./models.py:/app/models.py
+      - ./kokoro.py:/app/kokoro.py
+      - ./istftnet.py:/app/istftnet.py
+      - ./plbert.py:/app/plbert.py
+      - ./config.json:/app/config.json
+      - ./kokoro-v0_19.pth:/app/kokoro-v0_19.pth
+      - ./voices:/app/voices
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-k", "-f", "https://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

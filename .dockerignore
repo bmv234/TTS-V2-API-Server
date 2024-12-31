@@ -1,0 +1,32 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.env/
+temp/
+.cache/
+
+# Downloaded model files (will be downloaded at runtime)
+models.py
+kokoro.py
+istftnet.py
+plbert.py
+config.json
+kokoro-v0_19.pth
+voices/
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
+*.log
+.DS_Store
