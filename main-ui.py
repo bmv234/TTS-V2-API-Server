@@ -168,6 +168,66 @@ def create_wav_file(audio: np.ndarray) -> io.BytesIO:
     buffer.seek(0)
     return buffer
 
+def split_text_into_chunks(text: str, max_tokens: int = 510) -> List[str]:
+    """Split text into chunks that won't exceed the token limit.
+    
+    Args:
+        text (str): Text to split
+        max_tokens (int): Maximum tokens per chunk
+        
+    Returns:
+        List[str]: List of text chunks
+    """
+    # Import here to ensure files are downloaded
+    from kokoro import phonemize, tokenize
+    
+    # Split text into sentences (basic implementation)
+    sentences = text.replace('!', '.!').replace('?', '.?').split('.')
+    sentences = [s.strip() + '.' for s in sentences if s.strip()]
+    
+    chunks = []
+    current_chunk = []
+    current_tokens = 0
+    
+    for sentence in sentences:
+        # Check token count for this sentence
+        sentence_tokens = len(tokenize(phonemize(sentence, 'a')))
+        
+        if current_tokens + sentence_tokens <= max_tokens:
+            current_chunk.append(sentence)
+            current_tokens += sentence_tokens
+        else:
+            if current_chunk:
+                chunks.append(' '.join(current_chunk))
+            current_chunk = [sentence]
+            current_tokens = sentence_tokens
+    
+    if current_chunk:
+        chunks.append(' '.join(current_chunk))
+    
+    return chunks
+
+def concatenate_audio(audio_chunks: List[np.ndarray]) -> np.ndarray:
+    """Concatenate multiple audio chunks with a small silence between them.
+    
+    Args:
+        audio_chunks (List[np.ndarray]): List of audio arrays to concatenate
+        
+    Returns:
+        np.ndarray: Concatenated audio
+    """
+    # Add 0.1 seconds of silence between chunks
+    silence_samples = int(0.1 * SAMPLE_RATE)
+    silence = np.zeros(silence_samples)
+    
+    result = []
+    for i, chunk in enumerate(audio_chunks):
+        result.append(chunk)
+        if i < len(audio_chunks) - 1:  # Don't add silence after the last chunk
+            result.append(silence)
+    
+    return np.concatenate(result)
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize the model and voice packs on server startup."""
@@ -258,9 +318,22 @@ async def text_to_speech(text: str, voice: str = 'af') -> StreamingResponse:
         
         print(f"Generating speech for text: {text} with voice: {voice}")
         
-        # Generate audio using the model's generate function
-        audio, phonemes = generate(model, text, voicepacks[voice], lang=voice[0])
-        print(f"Generated audio shape: {audio.shape}, phonemes: {phonemes}")
+        # Split text into chunks if needed
+        chunks = split_text_into_chunks(text)
+        audio_chunks = []
+        
+        # Generate audio for each chunk
+        for chunk in chunks:
+            print(f"Processing chunk: {chunk}")
+            audio, phonemes = generate(model, chunk, voicepacks[voice], lang=voice[0])
+            audio_chunks.append(audio)
+            print(f"Generated audio shape: {audio.shape}, phonemes: {phonemes}")
+        
+        # Concatenate chunks if needed
+        if len(audio_chunks) > 1:
+            audio = concatenate_audio(audio_chunks)
+        else:
+            audio = audio_chunks[0]
         
         # Create WAV file
         buffer = create_wav_file(audio)
@@ -345,14 +418,27 @@ async def create_speech(request: AudioSpeechRequest):
     try:
         from kokoro import generate
         
-        # Generate audio
-        audio, phonemes = generate(
-            model, 
-            request.input, 
-            voicepacks[internal_voice], 
-            lang=internal_voice[0],
-            speed=request.speed
-        )
+        # Split text into chunks if needed
+        chunks = split_text_into_chunks(request.input)
+        audio_chunks = []
+        
+        # Generate audio for each chunk
+        for chunk in chunks:
+            print(f"Processing chunk: {chunk}")
+            audio, phonemes = generate(
+                model, 
+                chunk, 
+                voicepacks[internal_voice], 
+                lang=internal_voice[0],
+                speed=request.speed
+            )
+            audio_chunks.append(audio)
+        
+        # Concatenate chunks if needed
+        if len(audio_chunks) > 1:
+            audio = concatenate_audio(audio_chunks)
+        else:
+            audio = audio_chunks[0]
         
         # Create WAV file
         buffer = create_wav_file(audio)
